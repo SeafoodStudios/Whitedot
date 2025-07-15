@@ -25,9 +25,12 @@ try:
         value = value.decode('utf-8')
 
         if int(to_be_verified[key]) <= int(time.time()):
-            count = count + 1
-            verified.append(value)
-            del to_be_verified[key]
+            if value not in verified:
+                count = count + 1
+                verified.append(value)
+                del to_be_verified[key]
+            else:
+                del to_be_verified[key]
 
     with open("verified.json", "w") as f:
         json.dump(verified, f, indent=2)
