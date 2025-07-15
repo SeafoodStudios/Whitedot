@@ -82,21 +82,33 @@ def submit_block():
         transaction = str(transaction)
     except:
         return "Field input error.", 400
+    try:
+        block = {
+            "index": index,
+            "timestamp": timestamp,
+            "previous_hash": previous_hash,
+            "transaction": transaction,
+            "nonce": nonce,
+        }
+        blockjson = json.dumps(block, sort_keys=True)
 
-    block = {
-        "index": index,
-        "timestamp": timestamp,
-        "previous_hash": previous_hash,
-        "transaction": transaction,
-        "nonce": nonce,
-    }
-    blockjson = json.dumps(block, sort_keys=True)
+        hash_object = hashlib.sha256(blockjson.encode())
+        hash_hex = str(hash_object.hexdigest())
 
-    hash_object = hashlib.sha256(blockjson.encode())
-    hash_hex = str(hash_object.hexdigest())
+        if hash_hex.startswith("00000"):
+            try:
+                with open("mempool.json", "r") as f:
+                    mempool = json.load(f)
+            except FileNotFoundError:
+                mempool = []
+            except:
+                return "Mempool database error."
 
-    if hash_hex.startswith("00000"):
-        # Add to mempool.
-        pass
-    else:
-        return "Proof of Work hash must start with 5 zeros."
+            mempool.append(json.loads(blockjson))
+            with open("mempool.json", "w") as f:
+                json.dump(mempool, f, indent=2)
+            return "Success, request added to mempool to be processed"
+        else:
+            return "Proof of work hash must start with 5 zeros."
+    except:
+        return "Generic error, could be a verification or database error."
