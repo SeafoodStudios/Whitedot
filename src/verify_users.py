@@ -22,7 +22,7 @@ try:
     for key in list(to_be_verified.keys()):
         value = key.encode('utf-8')
         value = base64.b64decode(value)
-        value = value = value.decode('utf-8')
+        value = value.decode('utf-8')
 
         if int(to_be_verified[key]) <= int(time.time()):
             count = count + 1
