@@ -1,6 +1,8 @@
 from flask import Flask, request
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.exceptions import InvalidSignature
 import json
 import time
 import base64
@@ -108,3 +110,149 @@ def submit_block():
             return "Proof of work hash must start with 5 zeros."
     except:
         return "Generic error, could be a verification or database error."
+@app.route("/mempool/", methods=["GET"])
+def mempool():
+    try:
+        with open("mempool.json", "r") as f:
+            mempool = json.load(f)
+        return str(json.dumps(mempool)), 200
+    except:
+        return "Fatal error.", 400
+@app.route("/vote/", methods=["POST"])
+def vote():
+    try:
+        data = request.get_json()
+        if not data:
+            return "Missing JSON data.", 400
+        # vote should be yes/no
+        vote = data.get("vote")
+        validvote = 0
+        if not vote:
+            return "The vote field should not be empty.", 400
+        else:
+            if vote == "yes":
+                validvote = 1
+            if vote == "no":
+                 validvote = 1
+            if validvote == 0:
+                return "The vote field should be either yes or no.", 400
+        vote = str(vote)
+        # index should be the index of the block
+        index = data.get("index")
+        if not index or not index.isdigit():
+            return "The index field must be a digit.", 400
+        # signature should be the string "signature" signed by the user with their private key and encoded with base64
+        signature = data.get("signature")
+        # public key should be base64 encoded
+        public_key = data.get("public_key")
+        if not public_key:
+            return "Missing public_key field.", 400
+        public_key = str(public_key)
+        if not signature:
+            return "Missing signature field.", 400
+        verifysignature = base64.b64decode(signature)
+        public_key_bytes = base64.b64decode(public_key)
+        pubkey_obj = serialization.load_der_public_key(public_key_bytes, backend=default_backend())
+
+        pubkey_obj.verify(
+            verifysignature,
+            b"signature",
+            padding.PKCS1v15(),
+            hashes.SHA256()
+        )
+        with open("verified.json", "r") as f:
+            verified = json.load(f)
+        if not public_key in verified:
+            return "Key must be validated first."
+
+        try:
+            with open("votes.json", "r") as f:
+                votes = json.load(f)
+        except FileNotFoundError:
+            votes = {}
+        except:
+            return "Database error."
+        if index not in votes:
+            votes[index] = {"votes": {}}
+        if public_key in votes[index]["votes"]:
+            return "You have already voted on this block.", 400
+
+        votes[index]["votes"][public_key] = vote
+
+        with open("votes.json", "w") as f:
+            json.dump(votes, f, indent=2)
+
+        yes_votes = 0
+        for voter in votes[index]["votes"]:
+            if votes[index]["votes"][voter] == "yes":
+                yes_votes += 1
+        vote_count = len(votes[index]["votes"])
+        no_votes = vote_count - yes_votes
+        vote_state = "0"
+        if vote_count == len(verified):
+            if yes_votes > no_votes:
+                vote_state = "1"
+            elif yes_votes < no_votes:
+                vote_state = "0"
+            else:
+                vote_state = "0"
+        try:
+            with open("mempool.json", "r") as f:
+                mempool = json.load(f)
+        except FileNotFoundError:
+            mempool = []
+        except:
+            return "Mempool database error.", 400
+        if vote_state == "1":
+            votes.pop(index)
+            with open("votes.json", "w") as f:
+                json.dump(votes, f, indent=2)
+
+            try:
+                with open("blockchain.json", "r") as f:
+                    blockchain = json.load(f)
+            except FileNotFoundError:
+                blockchain = []
+            except:
+                return "Blockchain database error.", 400
+            full_block = None
+            i = 0
+            while i < len(mempool):
+                block = mempool[i]
+                if block.get("index") == index:
+                    full_block = mempool[i]
+                    break
+                i += 1
+            if full_block == None:
+                return "Block not found in mempool.", 400
+            blockchain.append(full_block)
+
+            i = 0
+            while i < len(mempool):
+                block = mempool[i]
+                if block.get("index") == index:
+                    mempool.pop(i)
+                    break
+                i += 1
+            with open("mempool.json", "w") as f:
+                json.dump(mempool, f, indent=2)
+            with open("blockchain.json", "w") as f:
+                json.dump(blockchain, f, indent=2)
+        else:
+            votes.pop(index)
+            with open("votes.json", "w") as f:
+                json.dump(votes, f, indent=2)
+            i = 0
+            while i < len(mempool):
+                block = mempool[i]
+                if block.get("index") == index:
+                    mempool.pop(i)
+                    break
+                i += 1
+            with open("mempool.json", "w") as f:
+                json.dump(mempool, f, indent=2)
+            return "Success, vote counted."
+
+        return "Success, vote counted."
+    except:
+        return "Fatal error.", 400
