@@ -100,22 +100,22 @@ def submit_block():
             except FileNotFoundError:
                 mempool = []
             except:
-                return "Mempool database error."
+                return "Mempool database error.", 400
 
             mempool.append(json.loads(blockjson))
             with open("mempool.json", "w") as f:
                 json.dump(mempool, f, indent=2)
-            return "Success, request added to mempool to be processed"
+            return "Success, request added to mempool to be processed", 200
         else:
-            return "Proof of work hash must start with 5 zeros."
+            return "Proof of work hash must start with 5 zeros.", 400
     except:
-        return "Generic error, could be a verification or database error."
+        return "Generic error, could be a verification or database error.", 400
 @app.route("/mempool/", methods=["GET"])
 def mempool():
     try:
         with open("mempool.json", "r") as f:
             mempool = json.load(f)
-        return str(json.dumps(mempool)), 200
+        return json.dumps(mempool), 200
     except:
         return "Fatal error.", 400
 @app.route("/vote/", methods=["POST"])
@@ -141,7 +141,7 @@ def vote():
         index = data.get("index")
         if not index or not index.isdigit():
             return "The index field must be a digit.", 400
-        # signature should be the string "signature" signed by the user with their private key and encoded with base64
+        # signature should be the index and vote seperated by a dash signed by the user with their private key and encoded with base64
         signature = data.get("signature")
         # public key should be base64 encoded
         public_key = data.get("public_key")
@@ -156,14 +156,15 @@ def vote():
 
         pubkey_obj.verify(
             verifysignature,
-            b"signature",
+            f"{index}-{vote}".encode(),
             padding.PKCS1v15(),
             hashes.SHA256()
         )
+
         with open("verified.json", "r") as f:
             verified = json.load(f)
         if not public_key in verified:
-            return "Key must be validated first."
+            return "Key must be validated first.",400
 
         try:
             with open("votes.json", "r") as f:
@@ -171,7 +172,7 @@ def vote():
         except FileNotFoundError:
             votes = {}
         except:
-            return "Database error."
+            return "Database error.", 400
         if index not in votes:
             votes[index] = {"votes": {}}
         if public_key in votes[index]["votes"]:
@@ -189,7 +190,7 @@ def vote():
         vote_count = len(votes[index]["votes"])
         no_votes = vote_count - yes_votes
         vote_state = "0"
-        if vote_count == len(verified):
+        if vote_count > len(verified) / 2:
             if yes_votes > no_votes:
                 vote_state = "1"
             elif yes_votes < no_votes:
@@ -251,8 +252,19 @@ def vote():
                 i += 1
             with open("mempool.json", "w") as f:
                 json.dump(mempool, f, indent=2)
-            return "Success, vote counted."
+            return "Success, vote counted.", 200
 
-        return "Success, vote counted."
+        return "Success, vote counted.", 200
+    except:
+        return "Fatal error.", 400
+@app.route("/blockchain/", methods=["GET"])
+def blockchain():
+    try:
+        try:
+            with open("blockchain.json", "r") as f:
+                blockchain = json.load(f)
+            return json.dumps(blockchain), 200
+        except:
+            return "Blockchain database error.", 400
     except:
         return "Fatal error.", 400
