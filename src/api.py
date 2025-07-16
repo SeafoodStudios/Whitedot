@@ -12,7 +12,9 @@ app = Flask(__name__)
 def join():
     try:
         data = request.get_json()
+        # Public key should be sent as a base64-encoded string representation of the RSA public key, derived from a DER-encoded format.
         public_key = str(data.get('public_key'))
+        # Unix time, you should probably use Python's time.time() function :)
         signup_time = str(int(time.time()) + 86400)
 
         if not public_key:
@@ -26,19 +28,13 @@ def join():
         except:
             return "Database error.", 400
 
-        non_encoded_key = public_key
-        public_key = public_key.encode('utf-8')
-        public_key = base64.b64encode(public_key)
-        public_key = public_key.decode('utf-8')
+        non_encoded_key = base64.b64decode(public_key)
 
         if public_key in to_be_verified:
             return "This key already exists.", 400
 
         try:
-            serialization.load_pem_public_key(
-                non_encoded_key.encode('utf-8'),
-                backend=default_backend()
-            )
+            public_key_validated = serialization.load_der_public_key(non_encoded_key, backend=default_backend())
         except:
             return "Invalid key format.", 400
 
