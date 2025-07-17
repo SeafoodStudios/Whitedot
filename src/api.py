@@ -63,6 +63,8 @@ def submit_block():
         previous_hash = data.get("previous_hash")
         nonce = data.get("nonce")
         transaction = data.get("transaction")
+        signature = data.get("signature")
+        public_key = data.get("public_key")
         if index is None or not str(index).isdigit():
             return "Invalid index field or missing index field.", 400
         index = str(index)
@@ -78,8 +80,25 @@ def submit_block():
         if not transaction:
             return "Missing transaction field.", 400
         transaction = str(transaction)
+        if not signature:
+            return "Missing signature field.", 400
+        signature = str(signature)
+        if not public_key:
+            return "Missing public_key field.", 400
+        public_key = str(public_key)
+
+        verifysignature = base64.b64decode(signature)
+        public_key_bytes = base64.b64decode(public_key)
+        pubkey_obj = serialization.load_der_public_key(public_key_bytes, backend=default_backend())
+
+        pubkey_obj.verify(
+            verifysignature,
+            f"{index}-{previous_hash}-{transaction}-{timestamp}".encode(),
+            padding.PKCS1v15(),
+            hashes.SHA256()
+        )
     except:
-        return "Field input error.", 400
+        return "Field input error or invalid signature. Signatures should be the index, previous_hash, transaction and timestamp fields seperated by a dash.", 400
     try:
         block = {
             "index": index,
@@ -87,6 +106,8 @@ def submit_block():
             "previous_hash": previous_hash,
             "transaction": transaction,
             "nonce": nonce,
+            "signature": signature,
+            "public_key": public_key
         }
         blockjson = json.dumps(block, sort_keys=True)
 
