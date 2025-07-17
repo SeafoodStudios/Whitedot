@@ -59,13 +59,16 @@ def submit_block():
         if not data:
             return "Missing JSON field/s.", 400
         index = data.get("index")
-        timestamp = str(int(time.time()))
+        timestamp = data.get("timestamp")
         previous_hash = data.get("previous_hash")
         nonce = data.get("nonce")
         transaction = data.get("transaction")
         if index is None or not str(index).isdigit():
             return "Invalid index field or missing index field.", 400
         index = str(index)
+        if timestamp is None or not str(timestamp).isdigit() or not timestamp:
+            return "Invalid timestamp field or missing timestamp field.", 400
+        timestamp = str(timestamp)
         if not previous_hash:
             return "Missing previous_hash field.", 400
         previous_hash = str(previous_hash)
