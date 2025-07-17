@@ -33,10 +33,21 @@ class Whitedot:
             return "Success: " + response.text
         else:
             return "Error: " + response.text
-    def submit_block(self, index, previous_hash, transaction):
+    def submit_block(self, index, previous_hash, transaction, private_key, public_key):
         url = "https://whitedot.pythonanywhere.com/submit_block"
         nonce = 0
-        timestamp = time.time()
+        timestamp = int(time.time())
+
+        private_key_bytes = base64.b64decode(private_key)
+        priv_key_obj = serialization.load_der_private_key(private_key_bytes, password=None, backend=default_backend())
+        message = f"{index}-{previous_hash}-{transaction}-{timestamp}".encode()
+        signature_bytes = priv_key_obj.sign(
+            message,
+            padding.PKCS1v15(),
+            hashes.SHA256()
+        )
+        signature = base64.b64encode(signature_bytes).decode()
+
         while True:
             nonce = nonce + 1
             block = {
@@ -44,7 +55,9 @@ class Whitedot:
             "timestamp": str(int(timestamp)),
             "previous_hash": str(previous_hash),
             "transaction": str(transaction),
-            "nonce": str(nonce)
+            "nonce": str(nonce),
+            "signature": str(signature),
+            "public_key": str(public_key)
             }
             blockjson = json.dumps(block, sort_keys=True)
             hash_object = hashlib.sha256(blockjson.encode())
@@ -56,7 +69,9 @@ class Whitedot:
             "timestamp": str(int(timestamp)),
             "previous_hash": str(previous_hash),
             "transaction": str(transaction),
-            "nonce": str(nonce)
+            "nonce": str(nonce),
+            "signature": str(signature),
+            "public_key": str(public_key)
         }
         response = requests.post(url, json=data)
         if response.status_code == 200:
@@ -97,4 +112,43 @@ class Whitedot:
             return response.text
         else:
             return "Error: " + response.text
+    def verify_blockchain(self):
+        response = requests.get("https://whitedot.pythonanywhere.com/blockchain/")
+        if not response.status_code == 200:
+            return "Error: " + response.text
+        blockchain = json.loads(str(response.text))
+
+        verified = 1
+        for i in range(len(blockchain)):
+            block = blockchain[i]
+            public_key = block["public_key"]
+            signature = block["signature"]
+            if i == 0 and block["transaction"] == "Genesis Block" and block["previous_hash"] == "0":
+                previous_hash = hashlib.sha256(str(json.dumps(block)).encode()).hexdigest()
+                pass
+            else:
+                if hashlib.sha256(str(json.dumps(block)).encode()).hexdigest() == block["previous_hash"]:
+                    pass
+                else:
+                    verified = 0
+
+                if hashlib.sha256(str(json.dumps(block)).encode()).hexdigest().startswith("00000"):
+                    pass
+                else:
+                    verified = 0
+                message = f"{block['index']}-{block['previous_hash']}-{block['transaction']}-{block['timestamp']}"
+                public_key_obj = serialization.load_der_public_key(base64.b64decode(public_key), backend=default_backend())
+                try:
+                    public_key_obj.verify(
+                    base64.b64decode(block["signature"]),
+                    message.encode(),
+                    padding.PKCS1v15(),
+                    hashes.SHA256()
+                    )
+                except:
+                    verified = 0
+        if verified == 1:
+            return "Blockchain is valid."
+        else:
+            return "Blockchain is not valid"
 dot = Whitedot()
