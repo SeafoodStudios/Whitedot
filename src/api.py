@@ -102,6 +102,10 @@ def submit_block():
             except:
                 return "Mempool database error.", 400
 
+            for block in mempool:
+                if str(block.get("index")) == str(index):
+                    return "Mempool already contains this index.", 400
+
             mempool.append(json.loads(blockjson))
             with open("mempool.json", "w") as f:
                 json.dump(mempool, f, indent=2)
@@ -189,7 +193,7 @@ def vote():
                 yes_votes += 1
         vote_count = len(votes[index]["votes"])
         no_votes = vote_count - yes_votes
-        vote_state = "0"
+        vote_state = "2"
         if vote_count > len(verified) / 2:
             if yes_votes > no_votes:
                 vote_state = "1"
@@ -239,7 +243,7 @@ def vote():
                 json.dump(mempool, f, indent=2)
             with open("blockchain.json", "w") as f:
                 json.dump(blockchain, f, indent=2)
-        else:
+        elif vote_state == "0":
             votes.pop(index)
             with open("votes.json", "w") as f:
                 json.dump(votes, f, indent=2)
@@ -252,6 +256,8 @@ def vote():
                 i += 1
             with open("mempool.json", "w") as f:
                 json.dump(mempool, f, indent=2)
+            return "Success, vote counted.", 200
+        else:
             return "Success, vote counted.", 200
 
         return "Success, vote counted.", 200
