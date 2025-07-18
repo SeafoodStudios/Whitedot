@@ -124,15 +124,15 @@ class Whitedot:
             public_key = block["public_key"]
             signature = block["signature"]
             if i == 0 and block["transaction"] == "Genesis Block" and block["previous_hash"] == "0":
-                previous_hash = hashlib.sha256(str(json.dumps(block)).encode()).hexdigest()
+                previous_hash = hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
                 pass
             else:
-                if hashlib.sha256(str(json.dumps(block)).encode()).hexdigest() == block["previous_hash"]:
+                if previous_hash == block["previous_hash"]:
                     pass
                 else:
                     verified = 0
 
-                if hashlib.sha256(str(json.dumps(block)).encode()).hexdigest().startswith("00000"):
+                if hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest().startswith("00000"):
                     pass
                 else:
                     verified = 0
@@ -147,8 +147,8 @@ class Whitedot:
                     )
                 except:
                     verified = 0
+                previous_hash = hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
         if verified == 1:
             return "Blockchain is valid."
         else:
             return "Blockchain is not valid"
-dot = Whitedot()
