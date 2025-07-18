@@ -119,6 +119,7 @@ class Whitedot:
         blockchain = json.loads(str(response.text))
 
         verified = 1
+        reasons = []
         users = {}
         
         for i in range(len(blockchain)):
@@ -134,11 +135,13 @@ class Whitedot:
                     pass
                 else:
                     verified = 0
+                    reasons.append("Invalid previous_hash")
 
                 if hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest().startswith("00000"):
                     pass
                 else:
                     verified = 0
+                    reasons.append("Not enough hash zeros")
                 message = f"{block['index']}-{block['previous_hash']}-{block['transaction']}-{block['timestamp']}"
                 public_key_obj = serialization.load_der_public_key(base64.b64decode(public_key), backend=default_backend())
                 try:
@@ -150,36 +153,41 @@ class Whitedot:
                     )
                 except:
                     verified = 0
+                    reasons.append("Invalid signature format.")
 
                 # blocks have to be validated within one day or they are invalid.
                 if int(previous_timestamp) < int(block["timestamp"]):
-                    if int(block["timestamp"]) - int(previous_timestamp) <= 86400:
+                    if int(block["timestamp"]) <= (time.time() + 10):
                         pass
                     else:
                         verified = 0
+                        reasons.append("Timestamp is invalid. It is too far ahead.")
                 else:
                     verified = 0
+                    reasons.append("Timestamp is invalid. It is not increasing.")
 
                 if not str(block["public_key"]) == str(str(block["transaction"]).split(" ")[0]):
                     verified = 0
+                    reasons.append("Invalid public_key or sender field in transaction.")
                 # sender amount recipient
                 if not str(block["transaction"]).split(" ")[0] in users:
                     # if the block is within the time range, it recieves 10 bonus whitedots
                     if int(block["timestamp"]) <= 1760625480:
-                        users[str(block["transaction"]).split(" ")[0])] = 10
+                        users[str(block["transaction"]).split(" ")[0]] = 10
                     else:
-                        users[str(block["transaction"]).split(" ")[0])] = 0
+                        users[str(block["transaction"]).split(" ")[0]] = 0
 
                 if not str(block["transaction"]).split(" ")[2] in users:
                     # if the block is within the time range, it recieves 10 bonus whitedots
                     if int(block["timestamp"]) <= 1760625480:
-                        users[str(block["transaction"]).split(" ")[2])] = 10
+                        users[str(block["transaction"]).split(" ")[2]] = 10
                     else:
-                        users[str(block["transaction"]).split(" ")[2])] = 0
+                        users[str(block["transaction"]).split(" ")[2]] = 0
                 sender = str(block["transaction"]).split(" ")[0]
                 amount = str(block["transaction"]).split(" ")[1]
                 if not (str(amount).isdigit() and int(amount) > 0):
                     verified = 0
+                    reasons.append("Amount is invalid.")
                 else:
                     amount = int(amount)
                 
@@ -187,6 +195,7 @@ class Whitedot:
 
                 if not int(users[sender]) >= amount:
                     verified = 0
+                    reasons.append("Amount is too much.")
 
                 users[sender] = int(users[sender]) - amount
                 users[recipient] = int(users[recipient]) + amount
@@ -195,6 +204,7 @@ class Whitedot:
                 previous_timestamp = block["timestamp"]
 
         if verified == 1:
-            return "Blockchain is valid.", users
+            return "Blockchain is valid.", users, "Since blockchain is valid, reasons do not need to be shown."
         else:
-            return "Blockchain is not valid", "Invalid balances cannot be shown."
+            return "Blockchain is not valid", "Invalid balances cannot be shown.", reasons
+dot = Whitedot()
