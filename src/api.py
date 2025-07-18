@@ -123,6 +123,9 @@ def submit_block():
             except:
                 return "Mempool database error.", 400
 
+            if len(mempool) > 0:
+                return "Mempool is full. Please try again later.", 400
+
             for block in mempool:
                 if str(block.get("index")) == str(index):
                     return "Mempool already contains this index.", 400
@@ -157,9 +160,9 @@ def vote():
         else:
             if vote == "yes":
                 validvote = 1
-            if vote == "no":
-                 validvote = 1
-            if validvote == 0:
+            elif vote == "no":
+                 validvote = 0
+            else:
                 return "The vote field should be either yes or no.", 400
         vote = str(vote)
         # index should be the index of the block
