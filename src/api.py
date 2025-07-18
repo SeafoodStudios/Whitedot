@@ -167,8 +167,9 @@ def vote():
         vote = str(vote)
         # index should be the index of the block
         index = data.get("index")
-        if not index or not index.isdigit():
+        if not index or not str(index).isdigit():
             return "The index field must be a digit.", 400
+        index = str(index)
         # signature should be the index and vote seperated by a dash signed by the user with their private key and encoded with base64
         signature = data.get("signature")
         # public key should be base64 encoded
