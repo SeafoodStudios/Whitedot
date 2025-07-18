@@ -119,12 +119,15 @@ class Whitedot:
         blockchain = json.loads(str(response.text))
 
         verified = 1
+        users = {}
+        
         for i in range(len(blockchain)):
             block = blockchain[i]
             public_key = block["public_key"]
             signature = block["signature"]
             if i == 0 and block["transaction"] == "Genesis Block" and block["previous_hash"] == "0":
                 previous_hash = hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
+                previous_timestamp = 0
                 pass
             else:
                 if previous_hash == block["previous_hash"]:
@@ -147,8 +150,51 @@ class Whitedot:
                     )
                 except:
                     verified = 0
+
+                # blocks have to be validated within one day or they are invalid.
+                if int(previous_timestamp) < int(block["timestamp"]):
+                    if int(block["timestamp"]) - int(previous_timestamp) <= 86400:
+                        pass
+                    else:
+                        verified = 0
+                else:
+                    verified = 0
+
+                if not str(block["public_key"]) == str(str(block["transaction"]).split(" ")[0]):
+                    verified = 0
+                # sender amount recipient
+                if not str(block["transaction"]).split(" ")[0] in users:
+                    # if the block is within the time range, it recieves 10 bonus whitedots
+                    if int(block["timestamp"]) <= 1760625480:
+                        users[str(block["transaction"]).split(" ")[0])] = 10
+                    else:
+                        users[str(block["transaction"]).split(" ")[0])] = 0
+
+                if not str(block["transaction"]).split(" ")[2] in users:
+                    # if the block is within the time range, it recieves 10 bonus whitedots
+                    if int(block["timestamp"]) <= 1760625480:
+                        users[str(block["transaction"]).split(" ")[2])] = 10
+                    else:
+                        users[str(block["transaction"]).split(" ")[2])] = 0
+                sender = str(block["transaction"]).split(" ")[0]
+                amount = str(block["transaction"]).split(" ")[1]
+                if not (str(amount).isdigit() and int(amount) > 0):
+                    verified = 0
+                else:
+                    amount = int(amount)
+                
+                recipient = str(str(block["transaction"]).split(" ")[2])
+
+                if not int(users[sender]) >= amount:
+                    verified = 0
+
+                users[sender] = int(users[sender]) - amount
+                users[recipient] = int(users[recipient]) + amount
+                
                 previous_hash = hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
+                previous_timestamp = block["timestamp"]
+
         if verified == 1:
-            return "Blockchain is valid."
+            return "Blockchain is valid.", users
         else:
-            return "Blockchain is not valid"
+            return "Blockchain is not valid", "Invalid balances cannot be shown."
