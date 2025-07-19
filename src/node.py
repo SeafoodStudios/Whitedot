@@ -4,6 +4,8 @@ import hashlib
 import random
 import json
 import time
+import os
+import argparse
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.backends import default_backend
@@ -30,9 +32,9 @@ class Whitedot:
         }
         response = requests.post(url, json=data)
         if response.status_code == 200:
-            return "Success: " + response.text
+            return "Success: " + response.text, 200
         else:
-            return "Error: " + response.text
+            return "Error: " + response.text, 400
     def submit_block(self, index, previous_hash, transaction, private_key, public_key):
         url = "https://whitedot.pythonanywhere.com/submit_block"
         nonce = 0
@@ -75,9 +77,9 @@ class Whitedot:
         }
         response = requests.post(url, json=data)
         if response.status_code == 200:
-            return "Success: " + response.text
+            return "Success: " + response.text, 200
         else:
-            return "Error: " + response.text
+            return "Error: " + response.text, 400
     def vote_block(self, vote, index, private_key, public_key):
         url = "https://whitedot.pythonanywhere.com/vote/"
         private_key_bytes = base64.b64decode(private_key)
@@ -112,11 +114,8 @@ class Whitedot:
             return response.text
         else:
             return "Error: " + response.text
-    def verify_blockchain(self):
-        response = requests.get("https://whitedot.pythonanywhere.com/blockchain/")
-        if not response.status_code == 200:
-            return "Error: " + response.text
-        blockchain = json.loads(str(response.text))
+    def verify_blockchain(self, blockchain):
+        blockchain = json.loads(str(blockchain))
 
         verified = 1
         reasons = []
@@ -157,7 +156,7 @@ class Whitedot:
 
                 # blocks have to be validated within one day or they are invalid.
                 if int(previous_timestamp) < int(block["timestamp"]):
-                    if int(block["timestamp"]) <= (time.time() + 10):
+                    if int(block["timestamp"]) <= (time.time() + 120):
                         pass
                     else:
                         verified = 0
@@ -208,3 +207,152 @@ class Whitedot:
         else:
             return "Blockchain is not valid", "Invalid balances cannot be shown.", reasons
 dot = Whitedot()
+def main():
+    parser = argparse.ArgumentParser(description="Whitedot Cryptocurrency")
+    parser.add_argument('command', choices=["transfer", "listen", "create_keys", "get_balance"], help='Command to run', nargs='?')
+    args = parser.parse_args()
+
+    if args.command == 'transfer':
+        try:
+            print("\nWhitedot Transfer\nPlease note that after the transaction has been confirmed, it cannot be canceled. Your transaction may take some time, depending on how activate the network is for the results to be added to the blockchain.\nYou may cancel this command before you confirm by typing Control + C.\n")
+            
+            public_key = input("Enter your public key: ")
+            
+            private_key = input("Enter your private keys path: ")
+            with open(private_key, "rb") as f:
+                private_key_bytes = f.read()
+            private_key = base64.b64encode(private_key_bytes).decode()
+            
+            recipient = input("Enter the public key of your recipient: ")
+            amount = "unconfirmed"
+            while not amount.isdigit():
+                amount = input("Enter the amount you would like to send: ")
+
+            confirmation = "unconfirmed"
+            while not (confirmation == "y" or confirmation == "n"):
+                confirmation = input(f"Are you sure you would like to send this user {amount} Whitedots (y/n): ")
+
+            if confirmation == "y":
+                print("You chose to continue.")
+            else:
+                print("you chose to cancel.")
+                exit()
+            try:
+                blockchain_data = requests.get("https://whitedot.pythonanywhere.com/blockchain").text
+                if str(dot.verify_blockchain(blockchain_data)[0]) == "Blockchain is valid.":
+                    blockchain_dict = json.loads(blockchain_data)
+                    last_block = blockchain_dict[-1]
+                    index = str(int(last_block["index"]) + 1)
+                    block_json = json.dumps(blockchain_dict[-1], sort_keys=True).encode('utf-8')
+                    hash_hex = hashlib.sha256(block_json).hexdigest()
+                    result = dot.submit_block(index, hash_hex, f"{public_key} {amount} {recipient}", private_key, public_key)
+                    if result[1] == 200:
+                        print("Transaction complete!")
+                    else:
+                        print(f"An error occurred! Error: {result[0]}")
+                else:
+                    exit()
+                
+            except Exception as e:
+                print(f"An error occured because of the given inputs, or the blockchain is invalid. Error: {e}")
+                exit()
+        except Exception as e:
+            print(f"\nTransaction canceled due to user interference or errors. Error: {e}")
+    elif args.command == 'create_keys':
+        print("Key Creator")
+        print("Make sure to save your keys once you created them! They cannot be recovered if you lose them!\n")
+        try:
+            if os.path.exists("private_key.der"):
+                print("It seems you already have a private key saved.")
+                if input("Would you like to override it (y/n): ") == "y":
+                    pass
+                else:
+                    print("Aborting...")
+                    exit()
+            keys = dot.create_keys()
+            der_bytes = base64.b64decode(keys[0])
+            with open("private_key.der", "wb") as f:
+                f.write(der_bytes)
+            network = dot.join_network(keys[1])
+            if network[1] == 200:
+                pass
+            else:
+                exit()
+            print("Saved private key as private_key.der")
+            print(f"Saved public key as {keys[1]}")
+            print("You will have to wait 1-2 days before your key will be accepted.")
+        except Exception as e:
+            print(f"Error: {e}")
+    elif args.command == 'get_balance':
+        print("Balance Finder")
+        print("Loading...\n")
+        get_blockchain = requests.get("https://whitedot.pythonanywhere.com/blockchain")
+        if get_blockchain.status_code == 200:
+            user_balances = dot.verify_blockchain(get_blockchain.text)
+            py_user_balances = user_balances[1]
+            try:
+                while True:
+                    user = input("Pick a user (enter their public key) to find their balance. Type Control + C to break out of this state: ")
+                    if user in py_user_balances:
+                        print("This user has " + str(py_user_balances[user]) + " Whitedots.")
+                    else:
+                        print("This user does not exist.")
+
+            except:
+                print("\nAn error occurred or the user decided to stop the program.")
+                exit()
+        else:
+            print("Error, blockchain could not be fetched.")
+    elif args.command == 'listen':
+        print("Node Listener\n")
+        listen_pub_key = str(input("Enter your public key: "))
+        listen_priv_key = str(input("Enter your private key's path: "))
+        with open(listen_priv_key, "rb") as f:
+            listen_private_key_bytes = f.read()
+        listen_priv_key = base64.b64encode(listen_private_key_bytes).decode()
+        print("\nNode is now listening for votes. Press Control + C to exit.\n")
+        voted = []
+        while True:
+            try:
+                blockchain_json = requests.get("https://whitedot.pythonanywhere.com/blockchain").text
+                block_hash = str(hashlib.sha256(str(blockchain_json).encode()).hexdigest())
+                if block_hash in voted:
+                    pass
+                else:
+                    voted.append(block_hash)
+                    blockchain_dict = json.loads(blockchain_json)
+                    mempool_json = requests.get("https://whitedot.pythonanywhere.com/mempool").text
+                    mempool_dict = json.loads(mempool_json)
+                    blockchain_dict.append(mempool_dict[0])
+                    blockchain = json.dumps(blockchain_dict)
+                    verify = dot.verify_blockchain(blockchain)
+                    if str(verify[0]) == "Blockchain is valid.":
+                        private_key_bytes = base64.b64decode(listen_priv_key)
+                        private_key = serialization.load_der_private_key(private_key_bytes, password=None, backend=default_backend())
+
+                        message = f"""{mempool_dict[0]["index"]}-yes""".encode()
+                        signature_bytes = private_key.sign(
+                            message,
+                            padding.PKCS1v15(),
+                            hashes.SHA256()
+                        )
+                        signature_b64 = base64.b64encode(signature_bytes).decode()
+                        data = {
+                            "vote": "yes",
+                            "index": mempool_dict[0]["index"],
+                            "signature": signature_b64,
+                            "public_key": listen_pub_key
+                        }
+                        response = requests.post("https://whitedot.pythonanywhere.com/vote/", json=data)
+
+                        print(mempool_dict[0])
+                        print("Voted for block.")
+                    else:
+                        print("Block invalid, block rejected.")
+            except Exception as e:
+                print(f"Error: {e}")
+            time.sleep(30)
+    else:
+        print("Error: Argparse CLI")
+if __name__ == "__main__":
+    main()
