@@ -1,365 +1,301 @@
-import requests
-import base64
-import hashlib
-import random
+from flask import Flask, request
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.exceptions import InvalidSignature
 import json
 import time
-import os
-import argparse
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.backends import default_backend
+import base64
+import hashlib
 
-class Whitedot:
-    def create_keys(self):
-        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        priv = key.private_bytes(
-            serialization.Encoding.DER,
-            serialization.PrivateFormat.PKCS8,
-            serialization.NoEncryption()
-        )
-        pub = key.public_key().public_bytes(
-            serialization.Encoding.DER,
-            serialization.PublicFormat.SubjectPublicKeyInfo
-        )
-        priv = base64.b64encode(priv).decode()
-        pub = base64.b64encode(pub).decode()
-        return str(priv), str(pub)
-    def join_network(self, public_key):
-        url = "https://whitedot.pythonanywhere.com/join/"
-        data = {
-            "public_key": public_key,
-        }
-        response = requests.post(url, json=data)
-        if response.status_code == 200:
-            return "Success: " + response.text, 200
-        else:
-            return "Error: " + response.text, 400
-    def submit_block(self, index, previous_hash, transaction, private_key, public_key):
-        url = "https://whitedot.pythonanywhere.com/submit_block"
-        nonce = 0
-        timestamp = int(time.time())
+app = Flask(__name__)
 
-        private_key_bytes = base64.b64decode(private_key)
-        priv_key_obj = serialization.load_der_private_key(private_key_bytes, password=None, backend=default_backend())
-        message = f"{index}-{previous_hash}-{transaction}-{timestamp}".encode()
-        signature_bytes = priv_key_obj.sign(
-            message,
+@app.route("/join/", methods=["POST"])
+def join():
+    try:
+        data = request.get_json()
+        # Public key should be sent as a base64-encoded string representation of the RSA public key, derived from a DER-encoded format.
+        public_key = str(data.get('public_key'))
+        # Unix time, you should probably use Python's time.time() function :)
+        signup_time = str(int(time.time()) + 86400)
+
+        if not public_key:
+            return "Missing public key.", 400
+
+        try:
+            with open("to_be_verified.json", "r") as f:
+                to_be_verified = json.load(f)
+        except FileNotFoundError:
+            to_be_verified = {}
+        except:
+            return "Database error.", 400
+
+        non_encoded_key = base64.b64decode(public_key)
+
+        if public_key in to_be_verified:
+            return "This key already exists.", 400
+
+        try:
+            public_key_validated = serialization.load_der_public_key(non_encoded_key, backend=default_backend())
+        except:
+            return "Invalid key format.", 400
+
+        to_be_verified[public_key] = signup_time
+
+        try:
+            with open("to_be_verified.json", "w") as f:
+                json.dump(to_be_verified, f, indent=2)
+        except:
+            return "Database error.", 400
+
+        return "Success, you will be added in 24-48 hours.", 200
+    except:
+        return "Fatal error.", 400
+
+@app.route('/submit_block', methods=['POST'])
+def submit_block():
+    try:
+        data = request.get_json()
+        if not data:
+            return "Missing JSON field/s.", 400
+        index = data.get("index")
+        timestamp = data.get("timestamp")
+        previous_hash = data.get("previous_hash")
+        nonce = data.get("nonce")
+        transaction = data.get("transaction")
+        signature = data.get("signature")
+        public_key = data.get("public_key")
+        if index is None or not str(index).isdigit():
+            return "Invalid index field or missing index field.", 400
+        index = str(index)
+        if timestamp is None or not str(timestamp).isdigit() or not timestamp:
+            return "Invalid timestamp field or missing timestamp field.", 400
+        timestamp = str(timestamp)
+        if not previous_hash:
+            return "Missing previous_hash field.", 400
+        previous_hash = str(previous_hash)
+        if not nonce:
+            return "Missing nonce field.", 400
+        nonce = str(nonce)
+        if not transaction:
+            return "Missing transaction field.", 400
+        transaction = str(transaction)
+        if not signature:
+            return "Missing signature field.", 400
+        signature = str(signature)
+        if not public_key:
+            return "Missing public_key field.", 400
+        public_key = str(public_key)
+
+        verifysignature = base64.b64decode(signature)
+        public_key_bytes = base64.b64decode(public_key)
+        pubkey_obj = serialization.load_der_public_key(public_key_bytes, backend=default_backend())
+
+        pubkey_obj.verify(
+            verifysignature,
+            f"{index}-{previous_hash}-{transaction}-{timestamp}".encode(),
             padding.PKCS1v15(),
             hashes.SHA256()
         )
-        signature = base64.b64encode(signature_bytes).decode()
-
-        while True:
-            nonce = nonce + 1
-            block = {
-            "index": str(index),
-            "timestamp": str(int(timestamp)),
-            "previous_hash": str(previous_hash),
-            "transaction": str(transaction),
-            "nonce": str(nonce),
-            "signature": str(signature),
-            "public_key": str(public_key)
-            }
-            blockjson = json.dumps(block, sort_keys=True)
-            hash_object = hashlib.sha256(blockjson.encode())
-            hash_hex = str(hash_object.hexdigest())
-            if hash_hex.startswith("00000"):
-                break
-        data = {
-            "index": str(index),
-            "timestamp": str(int(timestamp)),
-            "previous_hash": str(previous_hash),
-            "transaction": str(transaction),
-            "nonce": str(nonce),
-            "signature": str(signature),
-            "public_key": str(public_key)
-        }
-        response = requests.post(url, json=data)
-        if response.status_code == 200:
-            return "Success: " + response.text, 200
-        else:
-            return "Error: " + response.text, 400
-    def vote_block(self, vote, index, private_key, public_key):
-        url = "https://whitedot.pythonanywhere.com/vote/"
-        private_key_bytes = base64.b64decode(private_key)
-        private_key = serialization.load_der_private_key(private_key_bytes, password=None, backend=default_backend())
-        message = f"{index}-{vote}".encode()
-        signature_to_encode = private_key.sign(
-            message,
-            padding.PKCS1v15(),
-            hashes.SHA256()
-        )
-        signature = base64.b64encode(signature_to_encode).decode()
-        data = {
-            "vote": vote,
+    except:
+        return "Field input error or invalid signature. Signatures should be the index, previous_hash, transaction and timestamp fields seperated by a dash.", 400
+    try:
+        block = {
             "index": index,
+            "timestamp": timestamp,
+            "previous_hash": previous_hash,
+            "transaction": transaction,
+            "nonce": nonce,
             "signature": signature,
             "public_key": public_key
         }
-        response = requests.post(url, json=data)
-        if response.status_code == 200:
-            return "Success: " + response.text
-        else:
-            return "Error: " + response.text
-    def get_blockchain(self):
-        response = requests.get("https://whitedot.pythonanywhere.com/blockchain/")
-        if response.status_code == 200:
-            return response.text
-        else:
-            return "Error: " + response.text
-    def get_mempool(self):
-        response = requests.get("https://whitedot.pythonanywhere.com/mempool/")
-        if response.status_code == 200:
-            return response.text
-        else:
-            return "Error: " + response.text
-    def verify_blockchain(self, blockchain):
-        blockchain = json.loads(str(blockchain))
+        blockjson = json.dumps(block, sort_keys=True)
 
-        verified = 1
-        reasons = []
-        users = {}
-        
-        for i in range(len(blockchain)):
-            block = blockchain[i]
-            public_key = block["public_key"]
-            signature = block["signature"]
-            if i == 0 and block["transaction"] == "Genesis Block" and block["previous_hash"] == "0":
-                previous_hash = hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
-                previous_timestamp = 0
-                pass
-            else:
-                if previous_hash == block["previous_hash"]:
-                    pass
-                else:
-                    verified = 0
-                    reasons.append("Invalid previous_hash")
+        hash_object = hashlib.sha256(blockjson.encode())
+        hash_hex = str(hash_object.hexdigest())
 
-                if hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest().startswith("00000"):
-                    pass
-                else:
-                    verified = 0
-                    reasons.append("Not enough hash zeros")
-                message = f"{block['index']}-{block['previous_hash']}-{block['transaction']}-{block['timestamp']}"
-                public_key_obj = serialization.load_der_public_key(base64.b64decode(public_key), backend=default_backend())
-                try:
-                    public_key_obj.verify(
-                    base64.b64decode(block["signature"]),
-                    message.encode(),
-                    padding.PKCS1v15(),
-                    hashes.SHA256()
-                    )
-                except:
-                    verified = 0
-                    reasons.append("Invalid signature format.")
-
-                # blocks have to be validated within one day or they are invalid.
-                if int(previous_timestamp) < int(block["timestamp"]):
-                    if int(block["timestamp"]) <= (time.time() + 120):
-                        pass
-                    else:
-                        verified = 0
-                        reasons.append("Timestamp is invalid. It is too far ahead.")
-                else:
-                    verified = 0
-                    reasons.append("Timestamp is invalid. It is not increasing.")
-
-                if not str(block["public_key"]) == str(str(block["transaction"]).split(" ")[0]):
-                    verified = 0
-                    reasons.append("Invalid public_key or sender field in transaction.")
-                # sender amount recipient
-                if not str(block["transaction"]).split(" ")[0] in users:
-                    # if the block is within the time range, it recieves 10 bonus whitedots
-                    if int(block["timestamp"]) <= 1760625480:
-                        users[str(block["transaction"]).split(" ")[0]] = 10
-                    else:
-                        users[str(block["transaction"]).split(" ")[0]] = 0
-
-                if not str(block["transaction"]).split(" ")[2] in users:
-                    # if the block is within the time range, it recieves 10 bonus whitedots
-                    if int(block["timestamp"]) <= 1760625480:
-                        users[str(block["transaction"]).split(" ")[2]] = 10
-                    else:
-                        users[str(block["transaction"]).split(" ")[2]] = 0
-                sender = str(block["transaction"]).split(" ")[0]
-                amount = str(block["transaction"]).split(" ")[1]
-                if not (str(amount).isdigit() and int(amount) > 0):
-                    verified = 0
-                    reasons.append("Amount is invalid.")
-                else:
-                    amount = int(amount)
-                
-                recipient = str(str(block["transaction"]).split(" ")[2])
-
-                if not int(users[sender]) >= amount:
-                    verified = 0
-                    reasons.append("Amount is too much.")
-
-                users[sender] = int(users[sender]) - amount
-                users[recipient] = int(users[recipient]) + amount
-                
-                previous_hash = hashlib.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
-                previous_timestamp = block["timestamp"]
-
-        if verified == 1:
-            return "Blockchain is valid.", users, "Since blockchain is valid, reasons do not need to be shown."
-        else:
-            return "Blockchain is not valid", "Invalid balances cannot be shown.", reasons
-dot = Whitedot()
-def main():
-    blockchain_verification = requests.get("https://whitedot.pythonanywhere.com/blockchain").text
-    if dot.verify_blockchain(blockchain_verification)[0] == "Blockchain is valid.":
-        parser = argparse.ArgumentParser(description="Whitedot Cryptocurrency")
-        parser.add_argument('command', choices=["transfer", "listen", "create_keys", "get_balance"], help='Command to run', nargs='?')
-        args = parser.parse_args()
-
-        if args.command == 'transfer':
+        if hash_hex.startswith("00000"):
             try:
-                print("\nWhitedot Transfer\nPlease note that after the transaction has been confirmed, it cannot be canceled. Your transaction may take some time, depending on how activate the network is for the results to be added to the blockchain.\nYou may cancel this command before you confirm by typing Control + C.\n")
-                
-                public_key = input("Enter your public key: ")
-                
-                private_key = input("Enter your private keys path: ")
-                with open(private_key, "rb") as f:
-                    private_key_bytes = f.read()
-                private_key = base64.b64encode(private_key_bytes).decode()
-                
-                recipient = input("Enter the public key of your recipient: ")
-                amount = "unconfirmed"
-                while not amount.isdigit():
-                    amount = input("Enter the amount you would like to send: ")
+                with open("mempool.json", "r") as f:
+                    mempool = json.load(f)
+            except FileNotFoundError:
+                mempool = []
+            except:
+                return "Mempool database error.", 400
 
-                confirmation = "unconfirmed"
-                while not (confirmation == "y" or confirmation == "n"):
-                    confirmation = input(f"Are you sure you would like to send this user {amount} Whitedots (y/n): ")
+            if len(mempool) > 0:
+                return "Mempool is full. Please try again later.", 400
 
-                if confirmation == "y":
-                    print("You chose to continue.")
-                else:
-                    print("you chose to cancel.")
-                    exit()
-                try:
-                    blockchain_data = requests.get("https://whitedot.pythonanywhere.com/blockchain").text
-                    if str(dot.verify_blockchain(blockchain_data)[0]) == "Blockchain is valid.":
-                        blockchain_dict = json.loads(blockchain_data)
-                        last_block = blockchain_dict[-1]
-                        index = str(int(last_block["index"]) + 1)
-                        block_json = json.dumps(blockchain_dict[-1], sort_keys=True).encode('utf-8')
-                        hash_hex = hashlib.sha256(block_json).hexdigest()
-                        result = dot.submit_block(index, hash_hex, f"{public_key} {amount} {recipient}", private_key, public_key)
-                        if result[1] == 200:
-                            print("Transaction complete!")
-                        else:
-                            print(f"An error occurred! Error: {result[0]}")
-                    else:
-                        exit()
-                    
-                except Exception as e:
-                    print(f"An error occured because of the given inputs, or the blockchain is invalid. Error: {e}")
-                    exit()
-            except Exception as e:
-                print(f"\nTransaction canceled due to user interference or errors. Error: {e}")
-        elif args.command == 'create_keys':
-            print("Key Creator")
-            print("Make sure to save your keys once you created them! They cannot be recovered if you lose them!\n")
-            try:
-                if os.path.exists("private_key.der"):
-                    print("It seems you already have a private key saved.")
-                    if input("Would you like to override it (y/n): ") == "y":
-                        pass
-                    else:
-                        print("Aborting...")
-                        exit()
-                keys = dot.create_keys()
-                der_bytes = base64.b64decode(keys[0])
-                with open("private_key.der", "wb") as f:
-                    f.write(der_bytes)
-                network = dot.join_network(keys[1])
-                if network[1] == 200:
-                    pass
-                else:
-                    exit()
-                print("Saved private key as private_key.der")
-                print(f"Saved public key as {keys[1]}")
-                print("You will have to wait 1-2 days before your key will be accepted.")
-            except Exception as e:
-                print(f"Error: {e}")
-        elif args.command == 'get_balance':
-            print("Balance Finder")
-            print("Loading...\n")
-            get_blockchain = requests.get("https://whitedot.pythonanywhere.com/blockchain")
-            if get_blockchain.status_code == 200:
-                user_balances = dot.verify_blockchain(get_blockchain.text)
-                if user_balances[0] == "Blockchain is not valid":
-                    print("Blockchain is not valid. \n Aborting...")
-                    exit()
-                py_user_balances = user_balances[1]
-                try:
-                    while True:
-                        user = input("Pick a user (enter their public key) to find their balance. Type Control + C to break out of this state: ")
-                        if user in py_user_balances:
-                            print("This user has " + str(py_user_balances[user]) + " Whitedots.")
-                        else:
-                            print("This user does not exist.")
+            for block in mempool:
+                if str(block.get("index")) == str(index):
+                    return "Mempool already contains this index.", 400
 
-                except:
-                    print("\nAn error occurred or the user decided to stop the program.")
-                    exit()
-            else:
-                print("Error, blockchain could not be fetched.")
-        elif args.command == 'listen':
-            print("Node Listener\n")
-            listen_pub_key = str(input("Enter your public key: "))
-            listen_priv_key = str(input("Enter your private key's path: "))
-            with open(listen_priv_key, "rb") as f:
-                listen_private_key_bytes = f.read()
-            listen_priv_key = base64.b64encode(listen_private_key_bytes).decode()
-            print("\nNode is now listening for votes. Press Control + C to exit.\n")
-            voted = []
-            while True:
-                try:
-                    blockchain_json = requests.get("https://whitedot.pythonanywhere.com/blockchain").text
-                    block_hash = str(hashlib.sha256(str(blockchain_json).encode()).hexdigest())
-                    if block_hash in voted:
-                        pass
-                    else:
-                        voted.append(block_hash)
-                        blockchain_dict = json.loads(blockchain_json)
-                        mempool_json = requests.get("https://whitedot.pythonanywhere.com/mempool").text
-                        mempool_dict = json.loads(mempool_json)
-                        blockchain_dict.append(mempool_dict[0])
-                        blockchain = json.dumps(blockchain_dict)
-                        verify = dot.verify_blockchain(blockchain)
-                        if str(verify[0]) == "Blockchain is valid.":
-                            private_key_bytes = base64.b64decode(listen_priv_key)
-                            private_key = serialization.load_der_private_key(private_key_bytes, password=None, backend=default_backend())
-
-                            message = f"""{mempool_dict[0]["index"]}-yes""".encode()
-                            signature_bytes = private_key.sign(
-                                message,
-                                padding.PKCS1v15(),
-                                hashes.SHA256()
-                            )
-                            signature_b64 = base64.b64encode(signature_bytes).decode()
-                            data = {
-                                "vote": "yes",
-                                "index": mempool_dict[0]["index"],
-                                "signature": signature_b64,
-                                "public_key": listen_pub_key
-                            }
-                            response = requests.post("https://whitedot.pythonanywhere.com/vote/", json=data)
-
-                            print(mempool_dict[0])
-                            print("Voted for block.")
-                        else:
-                            print("Block invalid, block rejected.")
-                except Exception as e:
-                    print(f"Error: {e}")
-                time.sleep(30)
+            mempool.append(json.loads(blockjson))
+            with open("mempool.json", "w") as f:
+                json.dump(mempool, f, indent=2)
+            return "Success, request added to mempool to be processed", 200
         else:
-            print("Error: Argparse CLI")
-    else:
-        print("The blockchain is not valid. It may have beeen tampered with, or there may have been an accident. Please contact contact@seafoodstudios.com to make sure the blockchain can be recovered. If this person is not cooperating, consider working with your community to create a new server from Whitedot's source code and a safer version of the blockchain.")
-if __name__ == "__main__" :
-    main()
+            return "Proof of work hash must start with 5 zeros.", 400
+    except:
+        return "Generic error, could be a verification or database error.", 400
+@app.route("/mempool/", methods=["GET"])
+def mempool():
+    try:
+        with open("mempool.json", "r") as f:
+            mempool = json.load(f)
+        return json.dumps(mempool), 200
+    except:
+        return "Fatal error.", 400
+@app.route("/vote/", methods=["POST"])
+def vote():
+    try:
+        data = request.get_json()
+        if not data:
+            return "Missing JSON data.", 400
+        # vote should be yes/no
+        vote = data.get("vote")
+        validvote = 0
+        if not vote:
+            return "The vote field should not be empty.", 400
+        else:
+            if vote == "yes":
+                validvote = 1
+            elif vote == "no":
+                 validvote = 0
+            else:
+                return "The vote field should be either yes or no.", 400
+        vote = str(vote)
+        # index should be the index of the block
+        index = data.get("index")
+        if not index or not str(index).isdigit():
+            return "The index field must be a digit.", 400
+        index = str(index)
+        # signature should be the index and vote seperated by a dash signed by the user with their private key and encoded with base64
+        signature = data.get("signature")
+        # public key should be base64 encoded
+        public_key = data.get("public_key")
+        if not public_key:
+            return "Missing public_key field.", 400
+        public_key = str(public_key)
+        if not signature:
+            return "Missing signature field.", 400
+        verifysignature = base64.b64decode(signature)
+        public_key_bytes = base64.b64decode(public_key)
+        pubkey_obj = serialization.load_der_public_key(public_key_bytes, backend=default_backend())
+
+        pubkey_obj.verify(
+            verifysignature,
+            f"{index}-{vote}".encode(),
+            padding.PKCS1v15(),
+            hashes.SHA256()
+        )
+
+        with open("verified.json", "r") as f:
+            verified = json.load(f)
+        if not public_key in verified:
+            return "Key must be validated first.",400
+
+        try:
+            with open("votes.json", "r") as f:
+                votes = json.load(f)
+        except FileNotFoundError:
+            votes = {}
+        except:
+            return "Database error.", 400
+        if index not in votes:
+            votes[index] = {"votes": {}}
+        if public_key in votes[index]["votes"]:
+            return "You have already voted on this block.", 400
+
+        votes[index]["votes"][public_key] = vote
+
+        with open("votes.json", "w") as f:
+            json.dump(votes, f, indent=2)
+
+        yes_votes = 0
+        for voter in votes[index]["votes"]:
+            if votes[index]["votes"][voter] == "yes":
+                yes_votes += 1
+        vote_count = len(votes[index]["votes"])
+        no_votes = vote_count - yes_votes
+        vote_state = "2"
+        if vote_count > len(verified) / 2:
+            if yes_votes > no_votes:
+                vote_state = "1"
+            elif yes_votes < no_votes:
+                vote_state = "0"
+            else:
+                vote_state = "0"
+        try:
+            with open("mempool.json", "r") as f:
+                mempool = json.load(f)
+        except FileNotFoundError:
+            mempool = []
+        except:
+            return "Mempool database error.", 400
+        if vote_state == "1":
+            votes.pop(index)
+            with open("votes.json", "w") as f:
+                json.dump(votes, f, indent=2)
+
+            try:
+                with open("blockchain.json", "r") as f:
+                    blockchain = json.load(f)
+            except FileNotFoundError:
+                blockchain = []
+            except:
+                return "Blockchain database error.", 400
+            full_block = None
+            i = 0
+            while i < len(mempool):
+                block = mempool[i]
+                if block.get("index") == index:
+                    full_block = mempool[i]
+                    break
+                i += 1
+            if full_block == None:
+                return "Block not found in mempool.", 400
+            blockchain.append(full_block)
+
+            i = 0
+            while i < len(mempool):
+                block = mempool[i]
+                if block.get("index") == index:
+                    mempool.pop(i)
+                    break
+                i += 1
+            with open("mempool.json", "w") as f:
+                json.dump(mempool, f, indent=2)
+            with open("blockchain.json", "w") as f:
+                json.dump(blockchain, f, indent=2)
+        elif vote_state == "0":
+            votes.pop(index)
+            with open("votes.json", "w") as f:
+                json.dump(votes, f, indent=2)
+            i = 0
+            while i < len(mempool):
+                block = mempool[i]
+                if block.get("index") == index:
+                    mempool.pop(i)
+                    break
+                i += 1
+            with open("mempool.json", "w") as f:
+                json.dump(mempool, f, indent=2)
+            return "Success, vote counted.", 200
+        else:
+            return "Success, vote counted.", 200
+
+        return "Success, vote counted.", 200
+    except:
+        return "Fatal error.", 400
+@app.route("/blockchain/", methods=["GET"])
+def blockchain():
+    try:
+        try:
+            with open("blockchain.json", "r") as f:
+                blockchain = json.load(f)
+            return json.dumps(blockchain), 200
+        except:
+            return "Blockchain database error.", 400
+    except:
+        return "Fatal error.", 400
