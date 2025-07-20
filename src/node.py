@@ -222,8 +222,28 @@ def main():
             clone_dir = os.path.join("whitedot-cryptocurrency-authenticity", "repository")
             overridechoice = "undefined"
             if os.path.exists(clone_dir):
-                overridechoice = str(input("There seems to already be a folder named 'whitedot-cryptocurrency-authenticity', would you like to overwrite it? It is likely an old folder that this program made, but you are still strongly advised to check (y/n): "))
-            
+                overridechoice = str(input("There seems to already be a folder named 'whitedot-cryptocurrency-authenticity', would you like to overwrite it? It is likely an old folder that this program made, but you are still strongly advised to check it if you think you created the file or another program did this (y/n): "))
+            else:
+                try:
+                    subprocess.run(["git", "clone", repo_url, clone_dir], check=True)
+                    print("Repository downloaded.")
+                    response = requests.get("https://whitedot.pythonanywhere.com/blockchain/")
+                    if response.status_code == 200:
+                        try:
+                            with open(os.path.join("whitedot-cryptocurrency-authenticity", "blockchain.json"), "w", encoding="utf-8") as f:
+                                f.write(response.text)
+                            print("Blockchain successfully downloaded.")
+                            print("Now proceeding to the process you chose.")
+                        except Exception as e:
+                            print("Blockchain could not be downloaded.")
+                            print(str(e))
+                            print("Now proceeding to the process you chose.")
+                    else:
+                        print("Blockchain could not be fetched.")
+                        print("Now proceeding to the process you chose.")
+                except Exception as e:
+                    print(f"Error, repository could not be cloned. {e}")
+                    print("Now proceeding to the process you chose.")
             if overridechoice == "y":
                 if os.path.exists(clone_dir):
                     send2trash(clone_dir)
@@ -247,8 +267,11 @@ def main():
                     except Exception as e:
                         print(f"Error, repository could not be cloned. {e}")
                         print("Now proceeding to the process you chose.")
+                else:
+                    print("This directory seems to have been changed mid-process, please try again.")
+                    print("Now proceeding to the process you chose.")
             else:
-                print("You chose not to overwrite the folder.")
+                print("You have chosen not to override the folder.")
                 print("Now proceeding to the process you chose.")
         else:
             print("You have chosen not to download the blockchain or repository into the currency directory. Now continuing to the process you chose.")
