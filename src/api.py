@@ -3,14 +3,22 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.exceptions import InvalidSignature
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import json
 import time
 import base64
 import hashlib
 
 app = Flask(__name__)
+limiter = Limiter(get_remote_address, app=app)
+
+@app.errorhandler(429)
+def ratelimit_error(error):
+    return "Too many requests.", 400
 
 @app.route("/join/", methods=["POST"])
+@limiter.limit("1 per 6 hours")
 def join():
     try:
         data = request.get_json()
@@ -53,6 +61,7 @@ def join():
         return "Fatal error.", 400
 
 @app.route('/submit_block', methods=['POST'])
+@limiter.limit("1 per 10 minutes")
 def submit_block():
     try:
         data = request.get_json()
@@ -139,6 +148,7 @@ def submit_block():
     except:
         return "Generic error, could be a verification or database error.", 400
 @app.route("/mempool/", methods=["GET"])
+@limiter.limit("100 per minute")
 def mempool():
     try:
         with open("mempool.json", "r") as f:
@@ -147,6 +157,7 @@ def mempool():
     except:
         return "Fatal error.", 400
 @app.route("/vote/", methods=["POST"])
+@limiter.limit("3 per minute")
 def vote():
     try:
         data = request.get_json()
@@ -289,6 +300,7 @@ def vote():
     except:
         return "Fatal error.", 400
 @app.route("/blockchain/", methods=["GET"])
+@limiter.limit("100 per minute")
 def blockchain():
     try:
         try:
