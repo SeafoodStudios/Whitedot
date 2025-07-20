@@ -1,0 +1,4 @@
+requests
+cryptography
+flask_limiter
+send2trash
