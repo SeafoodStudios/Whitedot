@@ -47,12 +47,25 @@ Saved public key as {really_long_string}
 
 ## Command Line Tools
 - whitedot transfer
+
 This command allows you to transfer Whitedots with your account.
+
+
 - whitedot listen
+
 This command listens for any new transactions to be voted for. It is very encouraged you run this indefinitely to contribute to the community, but always monitor your laptop for any signs of wear and/or damage.
+
+
 - whitedot create_keys
+
 This command create your keys. Your public key is like your 'username' and your private key is like your 'password'. It then submits it to the server to be verified. You keys should be verified in around 1-2 days.
+
+
 - whitedot get_balance
+
 This command gets the balance, based on the public key you provide.
+
+
 - whitedot info
+
 This command gives information about the commands. You can also run the command 'whitedot' to do the same thing.
