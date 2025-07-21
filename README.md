@@ -35,16 +35,15 @@ Saved public key as {really_long_string}
 ```
 6. It is very recommend to download [Encrypto by MacPaw](https://macpaw.com/encrypto). Use this to always encrypt your private key when you are finished using it, and always decrypt the key when you are going to use it. Always keep a backup of your private key somewhere private and secure! The private key is usually located in your home directory, so you may have to do some searching. This may be a bit of a complicated step, so we split it into smaller steps:
 
-a. Download [MacPaw's Encrypto](https://macpaw.com/encrypto).
+- Download [MacPaw's Encrypto](https://macpaw.com/encrypto).
 
-b. Drop the private key file into Encrypto, and follow the steps in it to encrypt it.
+- Drop the private key file into Encrypto, and follow the steps in it to encrypt it.
 
-c. If the app leaves behind the unencrypted file, please remove the unencrypted file (SAVED SOMEWHERE ELSE, SAFELY), but keep the encrypted one.
+- If the app leaves behind the unencrypted file, please remove the unencrypted file (SAVED SOMEWHERE ELSE, SAFELY), but keep the encrypted one.
 
-d. When you need to do something that requires your private key, decrypt the file using Encrypto, and provide the path.
+- When you need to do something that requires your private key, decrypt the file using Encrypto, and provide the path.
 
-e. That's it! If you don't keep backups, and you lose your private or public key, you won't be able to access your account anymore, so be careful! Never share your private key, only share your public key.
-
+- That's it! If you don't keep backups, and you lose your private or public key, you won't be able to access your account anymore, so be careful! Never share your private key, only share your public key.
 
 ## Command Line Tools
 - whitedot transfer
