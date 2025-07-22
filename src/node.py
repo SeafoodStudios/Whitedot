@@ -430,9 +430,47 @@ def main():
                                     print(mempool_dict[0])
                                     print("Voted for block.")
                                 else:
+                                    private_key_bytes = base64.b64decode(listen_priv_key)
+                                    private_key = serialization.load_der_private_key(private_key_bytes, password=None, backend=default_backend())
+
+                                    message = f"""{mempool_dict[0]["index"]}-no""".encode()
+                                    signature_bytes = private_key.sign(
+                                        message,
+                                        padding.PKCS1v15(),
+                                        hashes.SHA256()
+                                    )
+                                    signature_b64 = base64.b64encode(signature_bytes).decode()
+                                    data = {
+                                        "vote": "no",
+                                        "index": mempool_dict[0]["index"],
+                                        "signature": signature_b64,
+                                        "public_key": listen_pub_key
+                                    }
+                                    response = requests.post("https://whitedot.pythonanywhere.com/vote/", json=data)
+
+                                    print(mempool_dict[0])
                                     print("Block invalid, block rejected.")
                     except Exception as e:
-                        print(f"Error: {e}")
+                        private_key_bytes = base64.b64decode(listen_priv_key)
+                        private_key = serialization.load_der_private_key(private_key_bytes, password=None, backend=default_backend())
+
+                        message = f"""{mempool_dict[0]["index"]}-no""".encode()
+                        signature_bytes = private_key.sign(
+                            message,
+                            padding.PKCS1v15(),
+                            hashes.SHA256()
+                        )
+                        signature_b64 = base64.b64encode(signature_bytes).decode()
+                        data = {
+                            "vote": "no",
+                            "index": mempool_dict[0]["index"],
+                            "signature": signature_b64,
+                            "public_key": listen_pub_key
+                        }
+                        response = requests.post("https://whitedot.pythonanywhere.com/vote/", json=data)
+
+                        print(mempool_dict[0])
+                        print("Block invalid, block rejected.")
                     time.sleep(20)
             elif args.command == 'info':
                 print("Whitedot Cryptocurrency Node")
