@@ -18,7 +18,7 @@ def ratelimit_error(error):
     return "Too many requests.", 400
 
 @app.route("/join/", methods=["POST"])
-@limiter.limit("1 per 6 hours")
+@limiter.limit("2 per 6 hours")
 def join():
     try:
         data = request.get_json()
@@ -61,7 +61,7 @@ def join():
         return "Fatal error.", 400
 
 @app.route('/submit_block', methods=['POST'])
-@limiter.limit("1 per 10 minutes")
+@limiter.limit("3 per 10 minutes")
 def submit_block():
     try:
         data = request.get_json()
