@@ -340,7 +340,7 @@ def main():
                     if os.path.exists("private_key.der"):
                         print("It seems you already have a private key saved.")
                         if input("Would you like to override it (y/n): ") == "y":
-                            pass
+                            send2trash("private_key.der")
                         else:
                             print("Aborting...")
                             exit()
@@ -352,6 +352,7 @@ def main():
                     if network[1] == 200:
                         pass
                     else:
+                        print("Network error.")
                         exit()
                     print("Saved private key as private_key.der")
                     print(f"Saved public key as {keys[1]}")
@@ -392,44 +393,47 @@ def main():
                 voted = []
                 while True:
                     try:
-                        blockchain_json = requests.get("https://whitedot.pythonanywhere.com/blockchain").text
-                        block_hash = str(hashlib.sha256(str(blockchain_json).encode()).hexdigest())
-                        if block_hash in voted:
-                            pass
+                        mempool_json = requests.get("https://whitedot.pythonanywhere.com/mempool").text
+                        mempool_dict = json.loads(mempool_json)
+                        if not mempool_dict:
+                            print("Mempool is empty.")
                         else:
-                            voted.append(block_hash)
-                            blockchain_dict = json.loads(blockchain_json)
-                            mempool_json = requests.get("https://whitedot.pythonanywhere.com/mempool").text
-                            mempool_dict = json.loads(mempool_json)
-                            blockchain_dict.append(mempool_dict[0])
-                            blockchain = json.dumps(blockchain_dict)
-                            verify = dot.verify_blockchain(blockchain)
-                            if str(verify[0]) == "Blockchain is valid.":
-                                private_key_bytes = base64.b64decode(listen_priv_key)
-                                private_key = serialization.load_der_private_key(private_key_bytes, password=None, backend=default_backend())
-
-                                message = f"""{mempool_dict[0]["index"]}-yes""".encode()
-                                signature_bytes = private_key.sign(
-                                    message,
-                                    padding.PKCS1v15(),
-                                    hashes.SHA256()
-                                )
-                                signature_b64 = base64.b64encode(signature_bytes).decode()
-                                data = {
-                                    "vote": "yes",
-                                    "index": mempool_dict[0]["index"],
-                                    "signature": signature_b64,
-                                    "public_key": listen_pub_key
-                                }
-                                response = requests.post("https://whitedot.pythonanywhere.com/vote/", json=data)
-
-                                print(mempool_dict[0])
-                                print("Voted for block.")
+                            blockchain_json = requests.get("https://whitedot.pythonanywhere.com/blockchain").text
+                            block_hash = str(hashlib.sha256(str(mempool_dict[0]).encode()).hexdigest())
+                            if block_hash in voted:
+                                print("Passed block, block already voted on.")
                             else:
-                                print("Block invalid, block rejected.")
+                                voted.append(block_hash)
+                                blockchain_dict = json.loads(blockchain_json)
+                                blockchain_dict.append(mempool_dict[0])
+                                blockchain = json.dumps(blockchain_dict)
+                                verify = dot.verify_blockchain(blockchain)
+                                if str(verify[0]) == "Blockchain is valid.":
+                                    private_key_bytes = base64.b64decode(listen_priv_key)
+                                    private_key = serialization.load_der_private_key(private_key_bytes, password=None, backend=default_backend())
+
+                                    message = f"""{mempool_dict[0]["index"]}-yes""".encode()
+                                    signature_bytes = private_key.sign(
+                                        message,
+                                        padding.PKCS1v15(),
+                                        hashes.SHA256()
+                                    )
+                                    signature_b64 = base64.b64encode(signature_bytes).decode()
+                                    data = {
+                                        "vote": "yes",
+                                        "index": mempool_dict[0]["index"],
+                                        "signature": signature_b64,
+                                        "public_key": listen_pub_key
+                                    }
+                                    response = requests.post("https://whitedot.pythonanywhere.com/vote/", json=data)
+
+                                    print(mempool_dict[0])
+                                    print("Voted for block.")
+                                else:
+                                    print("Block invalid, block rejected.")
                     except Exception as e:
                         print(f"Error: {e}")
-                    time.sleep(30)
+                    time.sleep(20)
             elif args.command == 'info':
                 print("Whitedot Cryptocurrency Node")
                 print("By SeafoodStudios")
@@ -445,7 +449,7 @@ def main():
                 print("Error: Invalid Command")
         else:
             print("The blockchain is not valid. It may have beeen tampered with, or there may have been an accident. Please contact contact@seafoodstudios.com to make sure the blockchain can be recovered. If this person is not cooperating, consider working with your community to create a new server from Whitedot's source code and a safer version of the blockchain.")
-    except:
-        print("Process stopped due to user interference or errors.")
+    except Exception as e:
+        print(f"Process stopped due to user interference or errors. Error: {e}")
 if __name__ == "__main__" :
     main()
