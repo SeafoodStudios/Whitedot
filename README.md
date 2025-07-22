@@ -71,4 +71,4 @@ This command gets the balance, based on the public key you provide.
 This command gives information about the commands. You can also run the command 'whitedot' to do the same thing.
 
 ## Thanks
-Whitedot is an experimental cryptocurrency, and you should never put too much expectation into it, because it is very fragile and unstable. Please don’t expect full reliability. It is more of a concept, although it is recommended that you contribute by hosting a listening node, because the more nodes there are, the less likely anybody is able to take over. Thanks again!
+Whitedot is an experimental cryptocurrency, and you should never put too much expectation into it, because it is very fragile and unstable. Please don’t expect full reliability. Never use this to transfer or store real assets. It is more of a concept, although it is recommended that you contribute by hosting a listening node, because the more nodes there are, the less likely anybody is able to take over. Thanks again!
