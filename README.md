@@ -1,5 +1,5 @@
 # Whitedot
-Whitedot is an open source, minimalistic and democratized cryptocurrency. It is mostly experimental, to show that cryptocurrencies can be a semi-centralized under a trusted authority to ensure a more connected community and simpler networking.
+Whitedot is an open source, minimalistic and democratized cryptocurrency. It is mostly experimental, to show that cryptocurrencies can be a semi-centralized under a trusted authority to ensure a more connected community and simpler networking. It uses Proof of Participation to enforce user honesty.
 
 ## How it Works
 Whitedot works by a series of steps called the Whitedot Protocol. It has a semi-centralized server, which means that one person controls the server, but does not have the ability to cheat the blockchain). The server is like the "government". A blockchain is a chain of blocks, with data in it, connected by a hash (a one way encoding that cannot be decoded) of the previous block. It also has nodes, to ensure everything is fair. The nodes are like the "citizens" of the Whitedot Protocol. The steps go like this:
@@ -70,5 +70,14 @@ This command gets the balance, based on the public key you provide.
 
 This command gives information about the commands. You can also run the command 'whitedot' to do the same thing.
 
+## Host a Node
+Hosting a node is a very good way to contribute to Whitedot, ensuring Whitedot can have a stronger network.
+
+Node hosting for Whitedot is documented with MacOS, Linux and Windows, and the instructions are provided here:
+- [MacOS Guide](https://github.com/SeafoodStudios/Whitedot/blob/main/resources/node_creating/mac_node_creator.md)
+- [Linux Guide](https://github.com/SeafoodStudios/Whitedot/blob/main/resources/node_creating/linux_node_creator.md)
+- [Windows Guide](https://github.com/SeafoodStudios/Whitedot/blob/main/resources/node_creating/windows_node_creator.md)
+
+This process is mildly technical, although if you follow the steps properly, you should not have problems. Please note that these have not been tested, but should work.
 ## Thanks
 Whitedot is an experimental cryptocurrency, and you should never put too much expectation into it, because it is very fragile and unstable. Please don’t expect full reliability. Never use this to transfer or store real assets. It is more of a concept, although it is recommended that you contribute by hosting a listening node, because the more nodes there are, the less likely anybody is able to take over. Thanks again!
