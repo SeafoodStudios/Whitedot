@@ -32,4 +32,5 @@ whitedot listen
 tmux attach -t whitedot
 ```
 2. Then, press Control + C, and type "exit" and press return into the text terminal prompt. You may now close the Terminal window.
-3. That's it! You can set up the node again by starting from "Host a Node"'s 5th step.
+3. Turn off Amphetamine by "ending this current session".
+4. That's it! You can set up the node again by starting from "Host a Node"'s 5th step.
