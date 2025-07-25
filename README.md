@@ -65,6 +65,9 @@ This command create your keys. Your public key is like your 'username' and your 
 
 This command gets the balance, based on the public key you provide.
 
+- whitedot usernames
+
+This command stores/finds your public key based on the username you provide to make remembering public keys easier.
 
 - whitedot info
 
