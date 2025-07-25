@@ -214,7 +214,7 @@ def main():
         blockchain_verification = requests.get("https://whitedot.pythonanywhere.com/blockchain").text
         if dot.verify_blockchain(blockchain_verification)[0] == "Blockchain is valid.":
             parser = argparse.ArgumentParser(description="Whitedot Cryptocurrency")
-            parser.add_argument('command', choices=["transfer", "listen", "create_keys", "get_balance", "info"], help='Command to run', nargs='?',default='info')
+            parser.add_argument('command', choices=["transfer", "listen", "create_keys", "get_balance", "info", "usernames"], help='Command to run', nargs='?',default='info')
             args = parser.parse_args()
             blockchain_file = os.path.join("whitedot-cryptocurrency-authenticity", "blockchain.json")
             if os.path.exists(blockchain_file):
@@ -481,8 +481,35 @@ def main():
                 print("whitedot listen - This command listens for any new transactions to be voted for. It is very encouraged you run this repeatedly to contribute to the community.")
                 print("whitedot create_keys - This command create your keys. Your public key is like your 'username' and your private key is like your 'password'. It then submits it to the server to be verified. You keys should be verified in around 1-2 days.")
                 print("whitedot get_balance - This command gets the balance, based on the public key you provide.")
+                print("whitedot usernames - This command allows you to easily store public keys under a username in a public database to make it easier to find your public key.")
                 print("whitedot info - This command gives information about the commands, precisely what you are doing. You can also run 'whitedot' to do the same thing.")
-                print("\nThanks for using Whitedot, and please contribute to the community!")   
+                print("\nThanks for using Whitedot, and please contribute to the community!")
+            elif args.command == 'usernames':
+                try:
+                    print("Username Storer/Finder")
+                    print("This stores/finds your public key in a database under a username to make things easier.")
+                    usernames_answer = ""
+                    while not (usernames_answer == "store" or usernames_answer == "find"):
+                        usernames_answer = str(input("Would you like to create a username or find a username? (store/find): "))
+                    if usernames_answer == "store":
+                        username_choice = input("Pick a username: ")
+                        public_key_choice = input("Enter your public key: ")
+                        create_payload = {
+                            "username": str(username_choice),
+                            "public_key": str(public_key_choice)
+                        }
+                        create_response = requests.post(
+                            'https://whitedotusernames.pythonanywhere.com/create/',
+                            headers={'Content-Type': 'application/json'},
+                            json=create_payload
+                        )
+                        print("Response: " + create_response.text)
+                    elif usernames_answer == "find":
+                        username_input = str(input("Which username would you like to search: "))
+                        searched = requests.get("https://whitedotusernames.pythonanywhere.com/username/" + username_input)
+                        print("Response: " + searched.text)
+                except Exception as e:
+                    print("Error: " + str(e))
             else:
                 print("Error: Invalid Command")
         else:
